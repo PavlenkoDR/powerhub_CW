@@ -5,13 +5,14 @@ std::map<std::string, int> commandvoc;
 json config;
 std::vector<std::pair<std::string, Adafruit_ADS1115*> >ads;
 std::string fconfig;
+std::streambuf* backup;
+std::ofstream logFile;
 
 void ftdi_fatal (char *str, int ret)
 {
-    fprintf (stderr, "%s: %d (%s)\n",
-             str, ret, ftdi_get_error_string (ftdic));
-    ftdi_free(ftdic);
-    exit (1);
+    	fprintf (stderr, "%s: %d (%s)\n", str, ret, ftdi_get_error_string (ftdic));
+    	ftdi_free(ftdic);
+    	exit (1);
 }
 
 int LoadConfigs(std::string fin)
@@ -28,12 +29,14 @@ int LoadConfigs(std::string fin)
 	in.open(fconfig);
 	in >> config;
 	in.close();
+	logFile.open("logs/log.txt", std::ios::app);
+	if ((bool)config["logs"]) std::cout.rdbuf(logFile.rdbuf());
+	else			  std::cout.rdbuf(backup);
 	return SUCCESSFUL;
 }
 
 int InitFTDI()
 {
-	unsigned char c = 0;
 	int ret;
 	if ((ftdic = ftdi_new()) == 0) {
 		fprintf(stderr, "ftdi_new() failed\n");
@@ -59,6 +62,7 @@ int ReloadFTDI()
 {
 	FreeFTDI();
 	InitFTDI();
+	return SUCCESSFUL;
 }
 
 int PingHost(std::string host, int try_count)
@@ -124,17 +128,15 @@ int _Power(unsigned char pin, int e)
 
 int Power(int n, int try_count, int e)
 {
-	int ret;
 	int ip_status;
 	std::string rele;
 	if (e) rele = "rele_on";
 	else   rele = "rele_off";
 	std::string ip = config[rele][n]["ip"];
 	std::string str = config[rele][n]["pin_out"];
-	unsigned char pin = std::stoi(str,nullptr,0), c = 0;
+	unsigned char pin = std::stoi(str,nullptr,0);
 	std::cout << n << ": ";
 	_Power(pin, e);
-	//if (PingHost(config[rele][n]["ip"], 1)) return 0;
 	for (int i = 0; i < try_count; i++)
 	{
 		ip_status = PingHost(ip, 1);
@@ -155,7 +157,7 @@ int PowerOn(int n, int try_count)
 
 int PowerOnAll(int try_count)
 {
-	for (int i = 0; i < config["rele_on"].size(); i++)
+	for (int i = 0; i < (int)config["rele_on"].size(); i++)
 		if (PowerOn(i, try_count) == SUCCESSFUL)
 			continue;
 		else
@@ -174,7 +176,7 @@ int PowerOff(int n, int try_count)
 
 int PowerOffAll(int try_count)
 {
-	for (int i = 0; i < config["rele_off"].size(); i++)
+	for (int i = 0; i < (int)config["rele_off"].size(); i++)
 		if (PowerOff(i, try_count) == SUCCESSFUL)
 			continue;
 		else
@@ -192,25 +194,19 @@ int RebootAll(int try_count)
 	return SUCCESSFUL;
 }
 
-double CheckHallSensorVPS(std::string i2caddress, int pin, int n)
+std::vector<int> CheckHallSensor(std::string i2caddress, int pin, int n)
 {
-	double med;
-/*
-	000: AINP = AIN0 и AINN = AIN1 100: AINP = AIN0 и AINN = GND
-	001: AINP = AIN0 и AINN = AIN3 101: AINP = AIN1 и AINN = GND
-	010: AINP = AIN1 и AINN = AIN3 110: AINP = AIN2 и AINN = GND
-	011: AINP = AIN2 и AINN = AIN3 111: AINP = AIN3 и AINN = GND
-*/
+	std::vector<int> res;
 	std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator adsfi;
 	for (std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator j = ads.begin(); j != ads.end(); j++)
 		if (j->first == i2caddress) {adsfi = j; break;}
   	adsfi->second->startComparator_SingleEnded(pin, 1000);
 	for (int i = 0; i < n; i++)
 	{
-		med += adsfi->second->getLastConversionResults();
-		usleep( 1000 );
+		res.push_back(adsfi->second->getLastConversionResults());
+		usleep(1000);
 	}
-	return (med*adsfi->second->VPS)/n;
+	return res;
 }
 
 int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::string>> flag)
@@ -219,20 +215,21 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 	unsigned char c = 0, tmp;
 	int ret = 0, ip_status;
 	std::string ip, tmpstr;
-	bool fpi = false, fpo = false, fip = false, fi2c = false;
+	bool fpo = false, fip = false, fi2c = false;
+	bool fi2cmed = false, fi2cmax = false, fi2cmin = false, fi2cav = false, fi2clist = false;
 	switch(id)
 	{
 	case EXIT_SUCCESSFUL:
 		return EXIT_SUCCESSFUL;
 		break;  
 	case COMMAND_ALLON:
-		if (PowerOnAll(100)  == EXIT_ERROR) std::cout << "error"  << std::endl;
+		if (PowerOnAll (100) == EXIT_ERROR) std::cout << "error" << std::endl;
 		break;
 	case COMMAND_ALLOFF:
 		if (PowerOffAll(100) == EXIT_ERROR) std::cout << "error" << std::endl;
 		break;
 	case COMMAND_REBOOTALL:
-		if (RebootAll(100)   == EXIT_ERROR) std::cout << "error"   << std::endl;
+		if (RebootAll  (100) == EXIT_ERROR) std::cout << "error" << std::endl;
 		break;
 	case COMMAND_ON:
 		if (!flag.empty())
@@ -295,30 +292,38 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 		std::cout << "read data: " << (int)c << std::endl;
 		for (auto i = flag.begin(); i != flag.end(); i++)
 		{
-			if ((*i).first == "pi")
-				fpi = true;
+			//std::cout << (*i).first << std::endl;
 			if ((*i).first == "po")
 				fpo = true;
 			if ((*i).first == "ip")
 				fip = true;
 			if ((*i).first == "i2c")
 				fi2c = true;
+			if ((*i).first == "i2cmed")
+				fi2cmed = true;
+			if ((*i).first == "i2cmax")
+				fi2cmax = true;
+			if ((*i).first == "i2cmin")
+				fi2cmin = true;
+			if ((*i).first == "i2cav")
+				fi2cav = true;
+			if ((*i).first == "i2clist")
+				fi2cav = true;
+			fi2c = fi2cmed | fi2cmax | fi2cmin | fi2cav | fi2c | fi2clist;
 		}
-		if ((fpo || fpi || fip)||(!(fpo | fpi | fip) && !fi2c))
+		if ((fpo || fip)||(!(fpo | fip) && !fi2c))
 		{
 			std::cout << "PowerOn status" << std::endl;
-			for (int i = 0; i < config["rele_on"].size(); i++)
+			for (int i = 0; i < (int)config["rele_on"].size(); i++)
 			{
 				ip = config["rele_on"][i]["ip"];
-				//if ((fpi) || (!(fpo || fip))) 
-				//	std::cout << "pin_in: "  << config["rele_on"][i]["pin_in"]  << std::endl;
-				if ((fpo) || (!(fpi || fip))) 
+				if (fpo || (!fip)) 
 				{
 					tmpstr = config["rele_on"][i]["pin_out"];
 					tmp = std::stoi(tmpstr,nullptr,0);
 					std::cout << "pin_out: " << tmpstr << " - " << ((((1 << tmp) & c) == (1 << tmp))?"on!":"off!") << std::endl;
 				}
-				if ((fip) || (!(fpo || fpi)))
+				if (fip || (!fpo))
 				{
 					std::cout << "ip: " << ip << " ";
 					ip_status = PingHost(ip, 1);
@@ -328,18 +333,16 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				}
 			}
 			std::cout << "PowerOff status" << std::endl;
-			for (int i = 0; i < config["rele_off"].size(); i++)
+			for (int i = 0; i < (int)config["rele_off"].size(); i++)
 			{
 				ip = config["rele_off"][i]["ip"];
-				//if ((fpi) || (!(fpo || fip))) 
-				//	std::cout << "pin_in: "  << config["rele_off"][i]["pin_in"]  << std::endl;
-				if ((fpo) || (!(fpi || fip)))
+				if (fpo || (!fip))
 				{
 					tmpstr = config["rele_off"][i]["pin_out"];
 					tmp = std::stoi(tmpstr,nullptr,0);
 					std::cout << "pin_out: " << tmpstr << " - " << ((((1 << tmp) & c) == (1 << tmp))?"on!":"off!") << std::endl;
 				}
-				if ((fip) || (!(fpo || fpi)))
+				if (fip || (!fpo))
 				{
 					std::cout << "ip: " << ip << " ";
 					ip_status = PingHost(ip, 1);
@@ -349,36 +352,89 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				}
 			}
 		}
-		if ((fi2c)||(!(fpo || fpi || fip ||fi2c)))
+		if ((fi2c)||(!(fpo || fip ||fi2c)))
 		{
+			bool fi2cflag = !(fi2cmed | fi2cmax | fi2cmin | fi2cav | fi2clist);
 			std::cout << "I2CBus status" << std::endl;
-			for (int i = 0; i < config["i2cbus"].size(); i++)
+			for (int i = 0; i < (int)config["i2cbus"].size(); i++)
 			{
-				for (int j = 0; j < config["i2cbus"][i]["pins"].size(); j++)
+				for (int j = 0; j < (int)config["i2cbus"][i]["pins"].size(); j++)
 				{
-					std::cout << "\tpin " << config["i2cbus"][i]["pins"][j]["pin"] << ": ";
-					std::cout << CheckHallSensorVPS(config["i2cbus"][i]["module_address"], config["i2cbus"][i]["pins"][j]["pin"], 1000) << "V" << std::endl;
+					std::vector<int> tmppinvec = CheckHallSensor(config["i2cbus"][i]["module_address"], 
+											config["i2cbus"][i]["pins"][j]["pin"], 
+											1000);
+					std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator adsfi;
+					for (std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator j = ads.begin(); j != ads.end(); j++)
+						if (j->first == config["i2cbus"][i]["module_address"]) {adsfi = j; break;}
+					double sum = 0;
+					std::cout << "=============== pin " << config["i2cbus"][i]["pins"][j]["pin"] << "===============" << std::endl;
+					std::cout << "N | Hex | Dec | V " << std::endl;
+					if (fi2clist || fi2cflag) for (int k = 0; k < (int)tmppinvec.size(); k++)
+					{
+						std::cout << std::dec << k 								<< " | ";
+						std::cout << std::hex << tmppinvec[k] 							<< " | ";
+						std::cout << std::dec << tmppinvec[k] 							<< " | ";
+						std::cout << std::dec << tmppinvec[k]*adsfi->second->VPS 				<< std::endl;
+					}
+					std::cout << std::endl;
+					std::sort (tmppinvec.begin(), tmppinvec.end());
+					if (fi2cmin || fi2cflag)
+					{
+						std::cout << "Min: " << "-" 								<< " | ";
+						std::cout << 		std::hex << tmppinvec[0] 					<< " | ";
+						std::cout << 		std::dec << tmppinvec[0] 					<< " | ";
+						std::cout << 		std::dec << tmppinvec[0]*adsfi->second->VPS 			<< std::endl;
+					}
+					if (fi2cmax || fi2cflag)
+					{
+						std::cout << "Max: " << "-" 								<< " | ";
+						std::cout << 		std::hex << tmppinvec[tmppinvec.size()-1] 			<< " | ";
+						std::cout << 		std::dec << tmppinvec[tmppinvec.size()-1] 			<< " | ";
+						std::cout << 		std::dec << tmppinvec[tmppinvec.size()-1]*adsfi->second->VPS	<< std::endl;
+					}
+					if (fi2cmed || fi2cflag)
+					{
+						std::cout << "Med: " << "-" 								<< " | ";
+						std::cout << 		std::hex << tmppinvec[tmppinvec.size()-1] 			<< " | ";
+						std::cout << 		std::dec << tmppinvec[tmppinvec.size()-1] 			<< " | ";
+						std::cout << 		std::dec << tmppinvec[tmppinvec.size()-1]*adsfi->second->VPS	<< std::endl;
+					}
+					if (fi2cav || fi2cflag)
+					{
+						for (int k = 0; k < (int)tmppinvec.size(); k++)
+							sum+=tmppinvec[k];
+						sum/=tmppinvec.size();
+						std::cout << "Average: " << "-" 							<< " | ";
+						std::cout << 		std::hex << (int)round(sum) 					<< " | ";
+						std::cout << 		std::dec << (int)round(sum)  					<< " | ";
+						std::cout << 		std::dec << sum*adsfi->second->VPS 				<< std::endl;
+					}
 				}
 			}
 		}
 		break;
 	case COMMAND_HELP:
-		std::cout << "/help				help" 						<< std::endl;
-		std::cout << "/exit				exit" 						<< std::endl;
-		std::cout << "/allon				sequential activation of relays" 		<< std::endl;
-		std::cout << "/alloff             		sequential shutdown of relays" 			<< std::endl;
-		std::cout << "/rebootall			sequential reboot of relays" 			<< std::endl;
-		std::cout << "/on            -p  <(0-7)> 	turn on the relay at the specified number" 	<< std::endl;
-		std::cout << "               -ep <(0-7)> 	turn on the relay at the pin number" 		<< std::endl;
-		std::cout << "/off           -p  <(0-7)> 	turn off the relay at the specified number"	<< std::endl;
-		std::cout << "               -ep <(0-7)> 	turn off the relay at the pin number" 		<< std::endl;
-		std::cout << "/reboot        -p  <(0-7)> 	reboot the relay at the specified number" 	<< std::endl;
-		std::cout << "               -ep <(0-7)> 	reboot the relay at the pin number" 		<< std::endl;
-		std::cout << "/status             		get status" 					<< std::endl;
-		//std::cout << "               -pi         	dislay pin_in status" 				<< std::endl;
-		std::cout << "               -po         	dislay pin_out status" 				<< std::endl;
-		std::cout << "               -ip         	dislay ip status" 				<< std::endl;
-		std::cout << "/reloadconfig       		reload config" 					<< std::endl;
+		std::cout << "help				help" 						<< std::endl;
+		std::cout << "exit				exit" 						<< std::endl;
+		std::cout << "allon				sequential activation of relays" 		<< std::endl;
+		std::cout << "alloff             		sequential shutdown of relays" 			<< std::endl;
+		std::cout << "rebootall				sequential reboot of relays" 			<< std::endl;
+		std::cout << "on            	-p  <(0-7)> 	turn on the relay at the specified number" 	<< std::endl;
+		std::cout << "               	-ep <(0-7)> 	turn on the relay at the pin number" 		<< std::endl;
+		std::cout << "off           	-p  <(0-7)> 	turn off the relay at the specified number"	<< std::endl;
+		std::cout << "               	-ep <(0-7)> 	turn off the relay at the pin number" 		<< std::endl;
+		std::cout << "reboot        	-p  <(0-7)> 	reboot the relay at the specified number" 	<< std::endl;
+		std::cout << "               	-ep <(0-7)> 	reboot the relay at the pin number" 		<< std::endl;
+		std::cout << "status             		get status" 					<< std::endl;
+		std::cout << "               	-po         	dislay pin_out status" 				<< std::endl;
+		std::cout << "               	-ip         	dislay ip status" 				<< std::endl;
+		std::cout << "               	-i2c         	dislay i2c status" 				<< std::endl;
+		std::cout << "               	-fi2cmed	dislay i2c median status" 			<< std::endl;
+		std::cout << "               	-fi2cmax        dislay i2c max status" 				<< std::endl;
+		std::cout << "               	-fi2cmin        dislay i2c min status" 				<< std::endl;
+		std::cout << "               	-fi2cav         dislay i2c average status" 			<< std::endl;
+		std::cout << "               	-fi2clist       dislay i2c list for smth time status" 		<< std::endl;
+		std::cout << "reloadconfig       		reload config" 					<< std::endl;
 		break;
 	case COMMAND_RELOADCONFIG:
 		LoadConfigs(fconfig);
@@ -388,7 +444,7 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 	return SUCCESSFUL;
 }
 
-int ParsCommad(std::string in)
+int ParsCommand(std::string in)
 {
 	std::string::iterator i = in.begin();
 	std::string word = "", str = "", tmp;
@@ -400,32 +456,46 @@ int ParsCommad(std::string in)
 		{
 		case PARS_BEFORE_READ_COMMAND:
 			if (*i == ' ')      {i++; continue;}
-			else if (*i == '/') {i++; pos = PARS_READ_COMMAND; continue;}
-			else { std::cout << "incorrect" << std::endl; ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); return EXIT_ERROR;}
+			else if (*i != ' ') {pos = PARS_READ_COMMAND; continue;}
 			break;
 		case PARS_READ_COMMAND:
-			if ((*i >= 'a')&&(*i <= 'z'))
+			if (((*i >= 'a')&&(*i <= 'z'))||((*i >= '0')&&(*i <= '9')))
 			{
 				word += *i;
 				i++;
 			}
 			if (*i == ' ')
 			{
-				if (word.size() == 0) { std::cout << "incorrect" << std::endl; ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); return EXIT_ERROR;}
-				while (*i == ' ')     i++;
-				if (*i != '-')        { std::cout << "incorrect" << std::endl; ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); return EXIT_ERROR;}
+				if (word.size() == 0) 
+				{ 
+					std::cout << "incorrect" << std::endl; 
+					ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); 
+					return EXIT_ERROR;
+				}
+				while (*i == ' ') i++;
+				if (*i != '-')        
+				{ 
+					std::cout << "incorrect" << std::endl; 
+					ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); 
+					return EXIT_ERROR;
+				}
 			}
 			if (*i == '-') {i++; pos = PARS_READ_FLAG;}
 			break;
 		case PARS_READ_FLAG:
-			if ((*i >= 'a')&&(*i <= 'z'))
+			if (((*i >= 'a')&&(*i <= 'z'))||((*i >= '0')&&(*i <= '9')))
 			{
 				str += *i;
 				i++;
 			}
 			if ((*i == ' ')||(i == in.end()))
 			{
-				if (str.size() == 0) { std::cout << "incorrect" << std::endl; ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); return EXIT_ERROR;}
+				if (str.size() == 0) 
+				{ 
+					std::cout << "incorrect" << std::endl; 
+					ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); 
+					return EXIT_ERROR;
+				}
 				while   (*i == ' ')     i++;
 				if 	(*i == '-')     {pos = PARS_READ_FLAG; 		flag.push_back(std::make_pair(str, "")); str = ""; i++; continue;}
 				else if (i == in.end()) {pos = PARS_END; 		flag.push_back(std::make_pair(str, "")); str = "";      continue;}
@@ -441,7 +511,12 @@ int ParsCommad(std::string in)
 			}
 			if ((*i == ' ')||(i == in.end()))
 			{
-				if (str.size() == 0) { std::cout << "incorrect" << std::endl; ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); return EXIT_ERROR;}
+				if (str.size() == 0) 
+				{ 
+					std::cout << "incorrect" << std::endl; 
+					ExecuteCommand("help", std::vector<std::pair<std::string, std::string>>()); 
+					return EXIT_ERROR;
+				}
 				while   (*i == ' ') i++;
 				if 	(*i == '-') 
 				{
@@ -473,8 +548,8 @@ int InitCommandLine()
 	commandvoc.insert(std::make_pair("exit", 		EXIT_SUCCESSFUL));
 	commandvoc.insert(std::make_pair("allon",		COMMAND_ALLON));
 	commandvoc.insert(std::make_pair("alloff", 		COMMAND_ALLOFF));
-	commandvoc.insert(std::make_pair("rebootall",	COMMAND_REBOOTALL));
-	commandvoc.insert(std::make_pair("on", 		COMMAND_ON));
+	commandvoc.insert(std::make_pair("rebootall",		COMMAND_REBOOTALL));
+	commandvoc.insert(std::make_pair("on", 			COMMAND_ON));
 	commandvoc.insert(std::make_pair("off", 		COMMAND_OFF));
 	commandvoc.insert(std::make_pair("reboot", 		COMMAND_REBOOT));
 	commandvoc.insert(std::make_pair("status", 		COMMAND_STATUS));
@@ -522,9 +597,10 @@ int CommandLine(int argc, char *argv[])
 		std::string line;
 		while(true)
 		{
-			std::cout << "\x1b[1;32m>>>\x1b[0m ";
+			printf("\x1b[1;32m>>>\x1b[0m ");
 			std::getline(std::cin, line);
-			if (ParsCommad(line) == EXIT_SUCCESSFUL) break;
+			if (ParsCommand(line) == EXIT_SUCCESSFUL) break;
+			std::cout << std::endl;
 		}
 	}
 	return SUCCESSFUL;
@@ -532,26 +608,11 @@ int CommandLine(int argc, char *argv[])
 
 int InitI2CBus()
 {
-	/*
-	Adafruit_ADS1115 ads = Adafruit_ADS1115((int)std::stoi("0x48",nullptr,0));
-	ads.setGain(GAIN_ONE);
-  	ads.startComparator_SingleEnded(0, 1000);
-  	int16_t adc0;
-	while(true)
-	{
-		
-  		adc0 = ads.getLastConversionResults();
-		std::cout << "AIN0: " << adc0*ads.VPS << std::endl;
-	  	usleep(1000);
-	}
-	*/
-	//*
 	std::string tmpstr;
 	std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator adsfi;
-	for (int i = 0; i < config["i2cbus"].size(); i++)
+	for (int i = 0; i < (int)config["i2cbus"].size(); i++)
 	{
 		tmpstr = config["i2cbus"][i]["module_address"];
-		//std::cout << "module_address " << tmpstr << " " << (int)std::stoi(tmpstr,nullptr,0) << std::endl;
 		ads.push_back(std::make_pair(tmpstr, new Adafruit_ADS1115((int)std::stoi(tmpstr,nullptr,0))));
 		/*
 		"****************************************************************************",
@@ -563,10 +624,8 @@ int InitI2CBus()
 		"GAIN_SIXTEEN   -   16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV"       ,
 		"****************************************************************************",
 		*/
-		//std::cout << "volts " << config["i2cbus"][i]["volts"] << std::endl;
 		for (std::vector<std::pair<std::string, Adafruit_ADS1115*> >::iterator j = ads.begin(); j != ads.end(); j++)
 			if (j->first == tmpstr) {adsfi = j; break;}
-		//std::cout << "module_address " << tmpstr << " " << adsfi->first << std::endl;
 		if      (config["i2cbus"][i]["volts"] == "GAIN_TWOTHIRDS")
   			adsfi->second->setGain(GAIN_TWOTHIRDS);
 		else if (config["i2cbus"][i]["volts"] == "GAIN_ONE")
@@ -581,13 +640,6 @@ int InitI2CBus()
   			adsfi->second->setGain(GAIN_SIXTEEN);
 		//*/
 		double med;
-	/*
-		000: AINP = AIN0 и AINN = AIN1 100: AINP = AIN0 и AINN = GND
-		001: AINP = AIN0 и AINN = AIN3 101: AINP = AIN1 и AINN = GND
-		010: AINP = AIN1 и AINN = AIN3 110: AINP = AIN2 и AINN = GND
-		011: AINP = AIN2 и AINN = AIN3 111: AINP = AIN3 и AINN = GND
-	*/
-		//adsfi = ads.find("0x48");
 	  	adsfi->second->startComparator_SingleEnded(0, 1000);
 		for (int i = 0; i < 1000; i++)
 		{
@@ -596,6 +648,23 @@ int InitI2CBus()
 		}
 		med = (med*adsfi->second->VPS)/1000;
 	}
+	return SUCCESSFUL;
+}
+
+int InitPowerHub(std::string str)
+{
+	backup=std::cout.rdbuf();
+	InitFTDI();
+	LoadConfigs(str);
+	InitCommandLine();
+	InitI2CBus();
+	return SUCCESSFUL;
+}
+
+int FreePowerHub()
+{
+	FreeFTDI();
+	FreeI2CBus();
 	return SUCCESSFUL;
 }
 

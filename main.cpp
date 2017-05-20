@@ -5,13 +5,9 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-	InitFTDI();
-	LoadConfigs("rele.config");
-	InitCommandLine();
-	InitI2CBus();
+	InitPowerHub("rele.config");
 	CommandLine(argc, argv);
-	FreeFTDI();
-	FreeI2CBus();
+	FreePowerHub();
 	cout << "Done!" << endl;
 	return SUCCESSFUL;
 }

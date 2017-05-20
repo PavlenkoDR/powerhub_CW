@@ -110,10 +110,10 @@ protected:
    uint8_t   m_conversionDelay;
    uint8_t   m_bitShift;
    adsGain_t m_gain;
-   float step;
 
  public:
   float VPS;
+  float step;
   static int fd;
   inline ~Adafruit_ADS1015(){close( fd );}
   Adafruit_ADS1015(uint8_t i2cAddress = ADS1015_ADDRESS);

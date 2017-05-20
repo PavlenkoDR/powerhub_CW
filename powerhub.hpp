@@ -2,10 +2,12 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
+#include <fstream>
 #include <string>
 #include <unistd.h>	//sleep()
 #include <vector>
 #include <ftdi.h>
+#include <cmath> 	//round()
 #include "json.hpp" 	//MIT License
 #include "ads1x15c.hpp"	//BSD License. Updated for raspberry pi by me
 
@@ -39,23 +41,28 @@
 
 using json = nlohmann::json;
 
+std::vector<int> CheckHallSensor(std::string i2caddress, int pin, int n);
+
 void ftdi_fatal (char *str, int ret);
-int LoadConfigs(std::string fin);
-int InitFTDI();
-int FreeFTDI();
-int ReloadFTDI();
-int PingHost(std::string host, int try_count);
-int _Power(unsigned char pin, int e);
-int Power(int n, int try_count, int e);
-int PowerOn(int n, int try_count);
-int PowerOnAll(int try_count);
-int PowerOff(int n, int try_count);
-int PowerOffAll(int try_count);
-int RebootAll(int try_count);
-double CheckHallSensorVPS(std::string i2caddress, int pin, int n);
+
 int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::string>> flag);
-int InitCommandLine();
+int PingHost(std::string host, int try_count);
 int CommandLine(int argc, char *argv[]);
+int Power(int n, int try_count, int e);
+int _Power(unsigned char pin, int e);
+int PowerOff(int n, int try_count);
+int PowerOn(int n, int try_count);
+int InitPowerHub(std::string str);
+int LoadConfigs(std::string fin);
+int ParsCommand(std::string in);
+int PowerOffAll(int try_count);
+int PowerOnAll(int try_count);
+int RebootAll(int try_count);
+int InitCommandLine();
+int FreePowerHub();
+int ReloadFTDI();
 int InitI2CBus();
 int FreeI2CBus();
+int InitFTDI();
+int FreeFTDI();
 
