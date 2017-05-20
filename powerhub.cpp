@@ -224,12 +224,15 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 		break;  
 	case COMMAND_ALLON:
 		if (PowerOnAll (100) == EXIT_ERROR) std::cout << "error" << std::endl;
+		return COMMAND_ALLON;
 		break;
 	case COMMAND_ALLOFF:
 		if (PowerOffAll(100) == EXIT_ERROR) std::cout << "error" << std::endl;
+		return COMMAND_ALLOFF;
 		break;
 	case COMMAND_REBOOTALL:
 		if (RebootAll  (100) == EXIT_ERROR) std::cout << "error" << std::endl;
+		return COMMAND_REBOOTALL;
 		break;
 	case COMMAND_ON:
 		if (!flag.empty())
@@ -247,6 +250,7 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				_Power(std::stoi((*i).second), 1);
 			}
 		}
+		return COMMAND_ON;
 		break;
 	case COMMAND_OFF:
 		if (!flag.empty())
@@ -264,6 +268,7 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				_Power(std::stoi((*i).second), 0);
 			}
 		}
+		return COMMAND_OFF;
 		break;
 	case COMMAND_REBOOT:
 		if (!flag.empty())
@@ -284,6 +289,7 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				_Power(std::stoi((*i).second), 1);
 			}
 		}
+		return COMMAND_REBOOT;
 		break;
 	case COMMAND_STATUS:
 		if ((ret = ftdi_read_data(ftdic, &c, 1)) < 0) {
@@ -412,33 +418,36 @@ int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::str
 				}
 			}
 		}
+		return COMMAND_STATUS;
 		break;
 	case COMMAND_HELP:
-		std::cout << "help				help" 						<< std::endl;
-		std::cout << "exit				exit" 						<< std::endl;
-		std::cout << "allon				sequential activation of relays" 		<< std::endl;
-		std::cout << "alloff             		sequential shutdown of relays" 			<< std::endl;
-		std::cout << "rebootall				sequential reboot of relays" 			<< std::endl;
-		std::cout << "on            	-p  <(0-7)> 	turn on the relay at the specified number" 	<< std::endl;
-		std::cout << "               	-ep <(0-7)> 	turn on the relay at the pin number" 		<< std::endl;
-		std::cout << "off           	-p  <(0-7)> 	turn off the relay at the specified number"	<< std::endl;
-		std::cout << "               	-ep <(0-7)> 	turn off the relay at the pin number" 		<< std::endl;
-		std::cout << "reboot        	-p  <(0-7)> 	reboot the relay at the specified number" 	<< std::endl;
-		std::cout << "               	-ep <(0-7)> 	reboot the relay at the pin number" 		<< std::endl;
-		std::cout << "status             		get status" 					<< std::endl;
-		std::cout << "               	-po         	dislay pin_out status" 				<< std::endl;
-		std::cout << "               	-ip         	dislay ip status" 				<< std::endl;
-		std::cout << "               	-i2c         	dislay i2c status" 				<< std::endl;
-		std::cout << "               	-fi2cmed	dislay i2c median status" 			<< std::endl;
-		std::cout << "               	-fi2cmax        dislay i2c max status" 				<< std::endl;
-		std::cout << "               	-fi2cmin        dislay i2c min status" 				<< std::endl;
-		std::cout << "               	-fi2cav         dislay i2c average status" 			<< std::endl;
-		std::cout << "               	-fi2clist       dislay i2c list for smth time status" 		<< std::endl;
-		std::cout << "reloadconfig       		reload config" 					<< std::endl;
+		std::cout << "help				| help" 					<< std::endl;
+		std::cout << "exit				| exit" 					<< std::endl;
+		std::cout << "allon				| sequential activation of relays" 		<< std::endl;
+		std::cout << "alloff             		| sequential shutdown of relays" 		<< std::endl;
+		std::cout << "rebootall				| sequential reboot of relays" 			<< std::endl;
+		std::cout << "on		-p  <(0-7)> 	| turn on the relay at the specified number" 	<< std::endl;
+		std::cout << "              	-ep <(0-7)> 	| turn on the relay at the pin number" 		<< std::endl;
+		std::cout << "off           	-p  <(0-7)> 	| turn off the relay at the specified number"	<< std::endl;
+		std::cout << "              	-ep <(0-7)> 	| turn off the relay at the pin number" 	<< std::endl;
+		std::cout << "reboot        	-p  <(0-7)> 	| reboot the relay at the specified number" 	<< std::endl;
+		std::cout << "               	-ep <(0-7)> 	| reboot the relay at the pin number" 		<< std::endl;
+		std::cout << "status             		| get status" 					<< std::endl;
+		std::cout << "               	-po         	| dislay pin_out status" 			<< std::endl;
+		std::cout << "               	-ip         	| dislay ip status" 				<< std::endl;
+		std::cout << "               	-i2c         	| dislay i2c status" 				<< std::endl;
+		std::cout << "               	-fi2cmed	| dislay i2c median status" 			<< std::endl;
+		std::cout << "               	-fi2cmax        | dislay i2c max status" 			<< std::endl;
+		std::cout << "               	-fi2cmin        | dislay i2c min status" 			<< std::endl;
+		std::cout << "               	-fi2cav         | dislay i2c average status" 			<< std::endl;
+		std::cout << "               	-fi2clist       | dislay i2c list for smth time status" 	<< std::endl;
+		std::cout << "reloadconfig       		| reload config" 				<< std::endl;
+		return COMMAND_HELP;
 		break;
 	case COMMAND_RELOADCONFIG:
 		LoadConfigs(fconfig);
 		std::cout << "configs reloaded"   << std::endl;
+		return COMMAND_RELOADCONFIG;
 		break;
 	}
 	return SUCCESSFUL;
@@ -558,39 +567,41 @@ int InitCommandLine()
 	return SUCCESSFUL;
 }
 
+int ExecuteArgcArgv(int argc, char *argv[])
+{
+	char *arg = argv[1];
+	arg++;
+	std::string word(arg), str1, str2;
+	std::vector<std::pair<std::string, std::string>> flag;
+	if (argc > 2)
+	{
+		int i = 2;
+		while (i < argc)
+		{
+			str1 = ""; str2 = "";
+			if (argv[i][0] == '-')
+			{
+				arg = argv[i];
+				arg++;
+				str1 = arg;
+			}
+			i++;
+			if ((i < argc)&&(argv[i][0] != '-'))
+			{
+				str2 = argv[i];
+				i++;
+			}
+			flag.push_back(std::make_pair(str1, str2));
+		}
+	}
+	return ExecuteCommand(word, flag);
+}
+
 int CommandLine(int argc, char *argv[])
 {
 	if (argc > 1) //when the program is started with parameters, will be executed once
 	{
-		char *arg = argv[1];
-		arg++;
-		std::string word(arg), str1, str2;
-		if (argc == 2)
-			ExecuteCommand(word, std::vector<std::pair<std::string, std::string>>());
-		else
-		{
-			std::vector<std::pair<std::string, std::string>> flag;
-			int i = 2;
-			while (i < argc)
-			{
-				str1 = ""; str2 = "";
-				if (argv[i][0] == '-')
-				{
-					arg = argv[i];
-					arg++;
-					str1 = arg;
-				}
-				i++;
-				if ((i < argc)&&(argv[i][0] != '-'))
-				{
-					str2 = argv[i];
-					i++;
-				}
-				flag.push_back(std::make_pair(str1, str2));
-			}
-			ExecuteCommand(word, flag);
-		}
-		
+		ExecuteArgcArgv(argc, argv);
 	}
 	else //when the program is started without parameters
 	{
