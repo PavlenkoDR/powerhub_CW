@@ -17,13 +17,6 @@ void ftdi_fatal (char *str, int ret)
 
 int LoadConfigs(std::string fin)
 {	
-	//"еach relay corresponds to the index 0-7"
-	//"ip       - server each to be checked"
-	//"pin_out  - rele adress"
-	//"pin_in   - In the future, this will be the address of the Hall sensors" - not supported
-	//"check_ip - check ip address? True - yes, false - no"
-	//"rele_on  - Parameters when the relay is turn on"
-	//"rele_off - Parameters when the relay is turn off"
 	fconfig = fin;
 	std::ifstream in;
 	in.open(fconfig);

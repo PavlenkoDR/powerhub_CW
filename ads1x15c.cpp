@@ -1,28 +1,12 @@
 
 #include "ads1x15c.hpp"
 int Adafruit_ADS1015::fd = 0;
-/*
-static uint8_t i2cread(void) {
-  #if ARDUINO >= 100
-  return Wire.read();
-  #else
-  return Wire.receive();
-  #endif
-}
 
 /**************************************************************************/
 /*!
     @brief  Abstract away platform differences in Arduino wire library
 */
 /**************************************************************************/
-/*
-static void i2cwrite(uint8_t x) {
-  #if ARDUINO >= 100
-  Wire.write((uint8_t)x);
-  #else
-  Wire.send(x);
-  #endif
-}
 
 /**************************************************************************/
 /*!
@@ -30,42 +14,16 @@ static void i2cwrite(uint8_t x) {
 */
 /**************************************************************************/
 static void writeRegister(uint8_t i2cAddress, uint8_t reg, uint16_t value) {
-
 	uint8_t writeBuf[3];
-	// set config register and start conversion
-	// AIN0 and GND, 4.096v, 128s/s
-	// Refer to page 19 area of spec sheet
-	//writeBuf[0] = 1; // config register is 1		//0 - чтение 1 - чтение\запись
-	//writeBuf[1] = 0b11000010; // 0xC2 single shot off
-	writeBuf[0] = reg; // config register is 1		//0 - чтение 1 - чтение\запись
+	writeBuf[0] = reg; // config register is 1	//0 - чтение 1 - чтение\запись
 	writeBuf[1] = value>>8; // 0xC2 single shot off
-	// bit 15 flag bit for single shot not used here
-	// Bits 14-12 input selection:
-	// 100 ANC0; 101 ANC1; 110 ANC2; 111 ANC3
-	// Bits 11-9 Amp gain. Default to 010 here 001 P19
-	// Bit 8 Operational mode of the ADS1115.
-	// 0 : Continuous conversion mode
-	// 1 : Power-down single-shot mode (default)
-
-	//writeBuf[2] = 0b10100101; // bits 7-0  0x85
 	writeBuf[2] = value & 0xFF; // bits 7-0  0x85
-	// Bits 7-5 data rate default to 100 for 128SPS
-	// Bits 4-0  comparator functions see spec sheet.
 
 	// begin conversion
 	if( write( Adafruit_ADS1015::fd, writeBuf, 3 ) != 3 ) {
 		perror( "Write to register 1" );
 		exit( 1 );
 	}
-
-
-/*
-  Wire.beginTransmission(i2cAddress);
-  i2cwrite((uint8_t)reg);
-  i2cwrite((uint8_t)(value>>8));
-  i2cwrite((uint8_t)(value & 0xFF));
-  Wire.endTransmission();
-*/
 }
 
 /**************************************************************************/
@@ -74,28 +32,18 @@ static void writeRegister(uint8_t i2cAddress, uint8_t reg, uint16_t value) {
 */
 /**************************************************************************/
 static uint16_t readRegister(uint8_t i2cAddress, uint8_t reg) {
-
 	uint8_t readBuf[2];
-
-  //Wire.beginTransmission(i2cAddress);
-
 	// connect to ADS1115 as i2c slave
 	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
 		printf( "Error: Couldn't find device on address!\n" );
 		exit( 1 );
 	}
-
-  //i2cwrite(ADS1015_REG_POINTER_CONVERT);
-	
 	// set pointer to 0
 	readBuf[0] = ADS1015_REG_POINTER_CONVERT;
-
 	if( write( Adafruit_ADS1015::fd, readBuf, 1 ) != 1 ) {
 		perror( "Write register select" );
 		exit( -1 );
 	}
-  //Wire.endTransmission();
-  //Wire.requestFrom(i2cAddress, (uint8_t)2);
 	if( read( Adafruit_ADS1015::fd, readBuf, 2 ) != 2 ) {
 		perror( "Read conversion" );
 		exit( -1 );
@@ -119,7 +67,6 @@ Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress)
 		printf( "Error: Couldn't open device! %d\n", Adafruit_ADS1015::fd );
 		exit( 1 );
 	}
-
 	// connect to ADS1115 as i2c slave
 	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
 		printf( "Error: Couldn't find device on address!\n" );
@@ -153,16 +100,6 @@ Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
 	}
 	step = 32768.0;
 	VPS = 6.144 / step;
-}
-
-/**************************************************************************/
-/*!
-    @brief  Sets up the HW (reads coefficients values, etc.)
-*/
-/**************************************************************************/
-/*
-void Adafruit_ADS1015::begin() {
-  Wire.begin();
 }
 
 /**************************************************************************/

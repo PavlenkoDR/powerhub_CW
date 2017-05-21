@@ -47,6 +47,7 @@ void ftdi_fatal (char *str, int ret);
 
 int ExecuteCommand(std::string word, std::vector<std::pair<std::string, std::string>> flag);
 int PingHost(std::string host, int try_count);
+int ExecuteArgcArgv(int argc, char *argv[]);
 int CommandLine(int argc, char *argv[]);
 int Power(int n, int try_count, int e);
 int _Power(unsigned char pin, int e);
