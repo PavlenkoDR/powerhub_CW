@@ -5,9 +5,9 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-	InitPowerHub("rele.config");
-	CommandLine(argc, argv);
-	FreePowerHub();
+	powerhub obj;
+	obj.InitPowerHub("rele.config");
+	obj.CommandLine(argc, argv);
 	cout << "Done!" << endl;
 	return SUCCESSFUL;
 }

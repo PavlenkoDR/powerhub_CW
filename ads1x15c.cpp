@@ -21,8 +21,8 @@ static void writeRegister(uint8_t i2cAddress, uint8_t reg, uint16_t value) {
 
 	// begin conversion
 	if( write( Adafruit_ADS1015::fd, writeBuf, 3 ) != 3 ) {
-		perror( "Write to register 1" );
-		exit( 1 );
+		//perror( "Write to register 1" );
+		throw "Write to register 1";
 	}
 }
 
@@ -35,18 +35,18 @@ static uint16_t readRegister(uint8_t i2cAddress, uint8_t reg) {
 	uint8_t readBuf[2];
 	// connect to ADS1115 as i2c slave
 	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
-		printf( "Error: Couldn't find device on address!\n" );
-		exit( 1 );
+		//printf( "Error: Couldn't find device on address!" );
+		throw "Error: Couldn't find device on address!";
 	}
 	// set pointer to 0
 	readBuf[0] = ADS1015_REG_POINTER_CONVERT;
 	if( write( Adafruit_ADS1015::fd, readBuf, 1 ) != 1 ) {
-		perror( "Write register select" );
-		exit( -1 );
+		//perror( "Write register select" );
+		throw "Write register select";
 	}
 	if( read( Adafruit_ADS1015::fd, readBuf, 2 ) != 2 ) {
-		perror( "Read conversion" );
-		exit( -1 );
+		//perror( "Read conversion" );
+		throw "Read conversion";
 	}
   return ((readBuf[0] << 8) | readBuf[1]);  
 }
@@ -56,7 +56,7 @@ static uint16_t readRegister(uint8_t i2cAddress, uint8_t reg) {
     @brief  Instantiates a new ADS1015 class w/appropriate properties
 */
 /**************************************************************************/
-Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress) 
+Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress, adsGain_t gain) 
 {
    m_i2cAddress = i2cAddress;
    m_conversionDelay = ADS1015_CONVERSIONDELAY;
@@ -64,16 +64,35 @@ Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress)
    m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
 	// open device on /dev/i2c-1 the default on Raspberry Pi B
 	if( ( Adafruit_ADS1015::fd = open( "/dev/i2c-1", O_RDWR ) ) < 0 ) {
-		printf( "Error: Couldn't open device! %d\n", Adafruit_ADS1015::fd );
-		exit( 1 );
+		//printf( "Error: Couldn't open device! %d", Adafruit_ADS1015::fd );
+		throw "Error: Couldn't open device! " + std::to_string(Adafruit_ADS1015::fd);
 	}
 	// connect to ADS1115 as i2c slave
 	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
-		printf( "Error: Couldn't find device on address!\n" );
-		exit( 1 );
+		//printf( "Error: Couldn't find device on address!" );
+		throw "Error: Couldn't find device on address!";
 	}
 	step = 2048.0;
-	VPS = 6.144 / step;
+	setGain(gain);
+}
+void Adafruit_ADS1015::Adafruit_ADS1015_init(uint8_t i2cAddress, adsGain_t gain) 
+{
+   m_i2cAddress = i2cAddress;
+   m_conversionDelay = ADS1015_CONVERSIONDELAY;
+   m_bitShift = 4;
+   m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
+	// open device on /dev/i2c-1 the default on Raspberry Pi B
+	if( ( Adafruit_ADS1015::fd = open( "/dev/i2c-1", O_RDWR ) ) < 0 ) {
+		//printf( "Error: Couldn't open device! %d", Adafruit_ADS1015::fd );
+		throw "Error: Couldn't open device! " + std::to_string(Adafruit_ADS1015::fd);
+	}
+	// connect to ADS1115 as i2c slave
+	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
+		//printf( "Error: Couldn't find device on address!" );
+		throw "Error: Couldn't find device on address!";
+	}
+	step = 2048.0;
+	setGain(gain);
 }
 
 /**************************************************************************/
@@ -81,7 +100,7 @@ Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress)
     @brief  Instantiates a new ADS1115 class w/appropriate properties
 */
 /**************************************************************************/
-Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
+Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress, adsGain_t gain)
 {
    m_i2cAddress = i2cAddress;
    m_conversionDelay = ADS1115_CONVERSIONDELAY;
@@ -89,17 +108,37 @@ Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
    m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
 	// open device on /dev/i2c-1 the default on Raspberry Pi B
 	if( ( Adafruit_ADS1015::fd = open( "/dev/i2c-1", O_RDWR ) ) < 0 ) {
-		printf( "Error: Couldn't open device! %d\n", Adafruit_ADS1015::fd );
-		exit( 1 );
+		//printf( "Error: Couldn't open device! %d", Adafruit_ADS1015::fd );
+		throw "Error: Couldn't open device! " + std::to_string(Adafruit_ADS1015::fd);
 	}
 
 	// connect to ADS1115 as i2c slave
 	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
-		printf( "Error: Couldn't find device on address!\n" );
-		exit( 1 );
+		//printf( "Error: Couldn't find device on address!" );
+		throw "Error: Couldn't find device on address!";
 	}
 	step = 32768.0;
-	VPS = 6.144 / step;
+	setGain(gain);
+}
+void Adafruit_ADS1115::Adafruit_ADS1115_init(uint8_t i2cAddress, adsGain_t gain)
+{
+   m_i2cAddress = i2cAddress;
+   m_conversionDelay = ADS1115_CONVERSIONDELAY;
+   m_bitShift = 0;
+   m_gain = GAIN_TWOTHIRDS; /* +/- 6.144V range (limited to VDD +0.3V max!) */
+	// open device on /dev/i2c-1 the default on Raspberry Pi B
+	if( ( Adafruit_ADS1015::fd = open( "/dev/i2c-1", O_RDWR ) ) < 0 ) {
+		//printf( "Error: Couldn't open device! %d", Adafruit_ADS1015::fd );
+		throw "Error: Couldn't open device! " + std::to_string(Adafruit_ADS1015::fd);
+	}
+
+	// connect to ADS1115 as i2c slave
+	if( ioctl( Adafruit_ADS1015::fd, I2C_SLAVE, i2cAddress ) < 0 ) {
+		//printf( "Error: Couldn't find device on address!" );
+		throw "Error: Couldn't find device on address!";
+	}
+	step = 32768.0;
+	setGain(gain);
 }
 
 /**************************************************************************/
@@ -340,8 +379,10 @@ void Adafruit_ADS1015::startComparator_SingleEnded(uint8_t channel, int16_t thre
 
   // Set the high threshold register
   // Shift 12-bit results left 4 bits for the ADS1015
+  //printf("@@@@@@");
   writeRegister(m_i2cAddress, ADS1015_REG_POINTER_HITHRESH, threshold << m_bitShift);
 
+  //printf("@@@@@@");
   // Write config register to the ADC
   writeRegister(m_i2cAddress, ADS1015_REG_POINTER_CONFIG, config);
 }
