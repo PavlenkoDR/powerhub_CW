@@ -1,8 +1,8 @@
 CC=g++
 #Это еще один комментарий. Он поясняет, что в переменной CFLAGS лежат флаги, которые передаются компилятору
 #g++ -I/usr/include/libftdi1 -lftdi1 -std=c++0x main.cpp powerhub.cpp ads1x15c.cpp -o main
-CFLAGS=-c -Wall -I/usr/include/libftdi1 -std=c++0x
-LDFLAGS=-lftdi1
+CFLAGS=-c -Wall -I/usr/include/libftdi1 -std=c++0x -pthread
+LDFLAGS=-lftdi1 -lpthread
 
 all: main
 
