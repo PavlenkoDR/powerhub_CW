@@ -14,6 +14,7 @@
 #include "snmp.hpp"	//check SNR_UPS
 #include <sstream>      // std::stringstream
 #include <map>
+#include <termios.h>
 
 #define EXIT_SUCCESSFUL			256 
 #define HARD_ERROR			255 //exit with smth error

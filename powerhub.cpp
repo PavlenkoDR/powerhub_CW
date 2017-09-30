@@ -561,7 +561,13 @@ int powerhub::InitSSH()
 {
 	if (sshControl)
 	{
+		struct termios ts, ots;
 		std::string passbuff = "1", repeatpassbuff = "2";
+		tcgetattr(STDIN_FILENO, &ts); //получить текущие настройки termios
+		ots = ts;
+		ts.c_lflag &= ~ECHO;
+		ts.c_lflag |= ECHONL;
+		tcsetattr(STDIN_FILENO, TCSAFLUSH, &ts);
 		while (true)
 		{
 			std::cout << "password for SSH: ";
@@ -576,7 +582,7 @@ int powerhub::InitSSH()
 			}
 		}
 		sshpassword = passbuff;
-		std::cout << "\"" << passbuff << "\"" << std::endl;
+		tcsetattr(STDIN_FILENO, TCSAFLUSH, &ots);
 	}
 	return SUCCESSFUL;
 }
