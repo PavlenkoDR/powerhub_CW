@@ -1,3 +1,6 @@
+//TODO uninterruptable power source API
+//TODO SNMP
+
 #include "powerhub.hpp"
 
 	std::string powerhub::GetDataTime()
@@ -70,7 +73,7 @@ int powerhub::LoadConfigs(std::string fin)
 {
 	fconfig = fin;
 	std::ifstream in;
-	std::stringstream tmpmessage;
+	std::stringstream tmpmessage;\
 	in.open(fconfig);
 	in >> config;
 	in.close();
@@ -489,6 +492,51 @@ int powerhub::LoadConfigs(std::string fin)
 		std::cout << "\"email\": \"email@host.com\"" 			<< std::endl;
 		emailRead = false;
 	}
+	// =========================================== SNMP ================================================
+	try
+	{
+		snmpObj.community = config["snmp"]["snr-ups"]["community"];
+		snmpObj.community_init = true;
+		snmpObj.init = true;
+	}
+	catch(...)
+	{
+		Logs(LOGS_EMPTY_PARAM, "Settings are not available. SNMP community settings not found!\n");
+		std::cout << "For setting, specify the parameter \"snmp\":{\"snr-ups\":{\"community\" = \"public\" ..." << std::endl;
+		snmpObj.init = false;
+	}
+	try
+	{
+		snmpObj.ip = config["snmp"]["snr-ups"]["ip"];
+		snmpObj.ip_init = true;
+		snmpObj.init = true;
+	}
+	catch(...)
+	{
+		Logs(LOGS_EMPTY_PARAM, "Settings are not available. SNMP ip settings not found!\n");
+		std::cout << "For setting, specify the parameter \"snmp\":{\"snr-ups\":{\"ip\" = \"123.123.123.123\" ..." << std::endl;
+		snmpObj.init = false;
+	}
+	try
+	{
+		pow_critical_min = config["snmp"]["snr-ups"]["pow_critical_min"];
+	}
+	catch(...)
+	{
+		Logs(LOGS_EMPTY_PARAM, "Settings are not available. pow_critical_min settings not found! Set by default: 30.\n");
+		std::cout << "For setting, specify the parameter \"snmp\":{\"snr-ups\":{\"pow_critical_min\": 30 ..." << std::endl;
+		pow_critical_min = 30;
+	}
+	try
+	{
+		pow_dangerous_min = config["snmp"]["snr-ups"]["pow_dangerous_min"];
+	}
+	catch(...)
+	{
+		Logs(LOGS_EMPTY_PARAM, "Settings are not available. pow_dangerous_min settings not found! Set by default: 15.\n");
+		std::cout << "For setting, specify the parameter \"snmp\":{\"snr-ups\":{\"pow_dangerous_min\": 15 ..." << std::endl;
+		pow_dangerous_min = 15;
+	}
 	
 	return SUCCESSFUL;
 }
@@ -513,13 +561,7 @@ int powerhub::InitSSH()
 {
 	if (sshControl)
 	{
-		struct termios ts, ots;
 		std::string passbuff = "1", repeatpassbuff = "2";
-		tcgetattr(STDIN_FILENO, &ts); //получить текущие настройки termios
-		ots = ts;
-		ts.c_lflag &= ~ECHO;
-		ts.c_lflag |= ECHONL;
-		tcsetattr(STDIN_FILENO, TCSAFLUSH, &ts);
 		while (true)
 		{
 			std::cout << "password for SSH: ";
@@ -535,7 +577,6 @@ int powerhub::InitSSH()
 		}
 		sshpassword = passbuff;
 		std::cout << "\"" << passbuff << "\"" << std::endl;
-		tcsetattr(STDIN_FILENO, TCSAFLUSH, &ots);
 	}
 	return SUCCESSFUL;
 }
@@ -820,7 +861,7 @@ int powerhub::RebootAll(int try_count)
 	return SUCCESSFUL;
 }
 
-std::vector<int> powerhub::CheckADS(std::string i2caddress, int pin, int number_metering)	//TODO: MUST FIX
+std::vector<int> powerhub::CheckADS(std::string i2caddress, int pin, int number_metering)
 {
 	std::vector<int> res;
 	Adafruit_ADS1115 ads((int)std::stoi(i2caddress,nullptr,0), gain);
@@ -1628,7 +1669,7 @@ void powerhub::ThreadCheckTerm()
 	}
 }
 
-void powerhub::ThreadCheckWorkingCapacity()	//TODO
+void powerhub::ThreadCheckWorkingCapacity()
 {
 	int hall_status, ret, ip_status;
 	std::string message, tmpstr;
@@ -1637,7 +1678,7 @@ void powerhub::ThreadCheckWorkingCapacity()	//TODO
 	while(work_capacity)
 	{
 		EMERGENCY = false;
-    		message = "Working capacity:\n";
+    		message = "========== Working capacity: ==========\n";
 		if (FTDIstatus)
 			if ((ret = ftdi_read_data(ftdic, &c, 1)) < 0) {
 				ftdi_fatal("unable to read from ftdi device", ret);
@@ -1696,6 +1737,82 @@ void powerhub::ThreadCheckWorkingCapacity()	//TODO
 	
 }
 
+void powerhub::ThreadCheckSNRUPS()
+{
+	int res = 0;
+	bool CRITICAL = false;
+	bool DANGEROUS = false;
+	bool EMERGENCY_EXIT = false;
+	std::string message;
+	while(tempControl)
+	{
+		message = "========== SNR-UPS status: ==========\n";
+		try
+		{
+			res = snmpObj.upsEstimatedChargeRemaining();
+			message += "upsBatteryStatus:             " + std::to_string(snmpObj.upsBatteryStatus()) 		+ "\n";
+			message += "upsSecondsOnBattery:          " + std::to_string(snmpObj.upsSecondsOnBattery()) 		+ "\n";
+			message += "upsEstimatedMinutesRemaining: " + std::to_string(snmpObj.upsEstimatedMinutesRemaining()) 	+ "\n";
+			message += "upsEstimatedChargeRemaining:  " + std::to_string(res);
+			if (res < pow_critical_min)
+			{
+				CRITICAL = true;
+				message += " - CRITICAL!";
+			}
+			if (res < pow_dangerous_min)
+			{
+				DANGEROUS = true;
+				message += " - DANGEROUS!";
+			}
+			message += "\n";
+			message += "upsBatteryVoltage:            " + std::to_string(snmpObj.upsBatteryVoltage()) 		+ "\n";
+			message += "upsBatteryCurrent:            " + std::to_string(snmpObj.upsBatteryCurrent()) 		+ "\n";
+			message += "upsBatteryTemperature:        " + std::to_string(snmpObj.upsBatteryTemperature()) 		+ "\n";
+			message += "upsOutputSource:              " + std::to_string(snmpObj.upsOutputSource()) 		+ "\n";
+			message += "upsOutputFrequency:           " + std::to_string(snmpObj.upsOutputFrequency()) 		+ "\n";
+			message += "upsOutputVoltage:             " + std::to_string(snmpObj.upsOutputVoltage()) 		+ "\n";
+			message += "upsOutputCurrent:             " + std::to_string(snmpObj.upsOutputCurrent()) 		+ "\n";
+			message += "upsOutputPower:               " + std::to_string(snmpObj.upsOutputPower()) 		+ "\n";
+			if ((DANGEROUS)&&(!EMERGENCY_EXIT))
+			{
+				message += "EMERGENCY EXIT!!!\n";
+    				std::cout << "\r";
+				Logs(LOGS_EMPTY_PARAM, "EMERGENCY EXIT!!!\n");
+				ExecuteCommand("alloff", std::vector<std::pair<std::string, std::string>>()); 
+				EMERGENCY_EXIT = true;
+			}
+			else if (EMERGENCY_EXIT)
+			{
+				if (res >= ((int)(pow_critical_min*1.25))%100)
+				{
+					EMERGENCY_EXIT = false;
+					message += "Battery charge is normalized!\n";
+    					std::cout << "\r";
+					Logs(LOGS_EMPTY_PARAM, "Battery charge is normalized!\n");
+					ExecuteCommand("allon", std::vector<std::pair<std::string, std::string>>()); 
+				}
+				else
+				{
+					message += " - Expectation of battery charge normalization!\n";
+    					std::cout << "\r";
+					Logs(LOGS_EMPTY_PARAM, "Expectation of battery charge normalization!\n");
+				}
+			}
+		}
+		catch(...)
+		{
+			message += "ERROR!\n";
+		}
+    		std::cout << "\r";
+		Logs(LOGS_EMPTY_PARAM, message);
+		if ((emailRead)&&((DANGEROUS)||(CRITICAL)))
+			system(("echo \"" + message + "\" | mail -v -s \"EMERGENCY BATTERY CHARGE!\" " + email + " 2> /dev/null").c_str());
+    		std::cout << "\r";
+		std::cout << "\x1b[1;32m>>>\x1b[0m " << std::flush;
+		sleep(check_sleep);
+	}
+}
+
 void powerhub::_InitThreads()
 {
     	std::thread func_CheckWorkingCapacity(&powerhub::ThreadCheckWorkingCapacity, this);
@@ -1703,6 +1820,8 @@ void powerhub::_InitThreads()
     	//sleep(15);
     	std::thread func_CheckTerm(&powerhub::ThreadCheckTerm, this); 
     	if (func_CheckTerm.joinable()) func_CheckTerm.detach(); 
+    	std::thread func_CheckSNRUPS(&powerhub::ThreadCheckSNRUPS, this); 
+    	if (func_CheckSNRUPS.joinable()) func_CheckSNRUPS.detach(); 
 }
 
 int powerhub::InitThreads()

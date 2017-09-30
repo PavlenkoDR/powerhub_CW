@@ -6,8 +6,8 @@ LDFLAGS=-lftdi1 -lpthread
 
 all: main
 
-main: main.o powerhub.o ads1x15c.o
-	$(CC) $(LDFLAGS) main.o powerhub.o ads1x15c.o -o main
+main: main.o powerhub.o ads1x15c.o snmp.o
+	$(CC) $(LDFLAGS) main.o powerhub.o ads1x15c.o snmp.o -o main
 
 main.o: main.cpp
 	$(CC) $(CFLAGS) main.cpp
@@ -17,4 +17,7 @@ powerhub.o: powerhub.cpp
 
 ads1x15c.o: ads1x15c.cpp
 	$(CC) $(CFLAGS) ads1x15c.cpp
+
+snmp.o: snmp.cpp
+	$(CC) $(CFLAGS) snmp.cpp
 

@@ -4,15 +4,14 @@
 #include <iostream>
 #include <thread>
 #include <fstream>
-#include <fstream>
 #include <string>
 #include <unistd.h>	//sleep()
 #include <vector>
 #include <ftdi.h>
-#include <termios.h>
 #include <cmath> 	//round()
 #include "json.hpp" 	//MIT License
 #include "ads1x15c.hpp"	//BSD License. Updated for raspberry pi by me
+#include "snmp.hpp"	//check SNR_UPS
 #include <sstream>      // std::stringstream
 #include <map>
 
@@ -133,6 +132,10 @@ private:
 	int InitCommandLine();
 	int FreePowerHub();
 	
+	snmp snmpObj;
+	int pow_critical_min = 30;
+	int pow_dangerous_min = 15;
+	
 public:
 	powerhub();
 	powerhub(std::string str);
@@ -141,6 +144,7 @@ public:
 	double CheckThermalSensor(std::string i2caddress, int pin, int number_metering, int value);
 	void ThreadCheckTerm();
 	void ThreadCheckWorkingCapacity();
+	void ThreadCheckSNRUPS();
 	void _InitThreads();
 	int CheckADSGetValue(std::string i2caddress, int pin, int number_metering, int value);
 	int CheckHallSensorStatus(std::string i2caddress, int pin, int number_metering);
